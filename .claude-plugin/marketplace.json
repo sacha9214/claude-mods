@@ -1,0 +1,19 @@
+{
+  "name": "sacha-mods",
+  "description": "Sacha's Claude Code mods: cache countdown and keep-warm, task progress bar and subagent panel.",
+  "owner": {
+    "name": "sacha9214"
+  },
+  "plugins": [
+    {
+      "name": "cache-clock",
+      "source": "./cache-clock",
+      "description": "Countdown until the prompt cache goes cold, with a keep-warm switch."
+    },
+    {
+      "name": "helper-desk",
+      "source": "./helper-desk",
+      "description": "Task-list progress bar above the prompt and a side panel of subagents with their cost."
+    }
+  ]
+}

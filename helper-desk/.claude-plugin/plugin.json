@@ -1,0 +1,11 @@
+{
+  "name": "helper-desk",
+  "version": "0.1.0",
+  "description": "A progress bar of the task list above the prompt, and a side panel with each subagent's status, activity, tokens and cost.",
+  "author": {
+    "name": "sacha9214"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/sacha9214/claude-mods",
+  "types": "./types/index.d.ts"
+}
