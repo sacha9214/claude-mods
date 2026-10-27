@@ -1,0 +1,11 @@
+{
+  "name": "time-left",
+  "version": "0.1.0",
+  "description": "Estimates how long Claude has left: a range on the spinner line and above the prompt, learned from your own past steps and turns, and calibrated against what really happened.",
+  "author": {
+    "name": "sacha9214"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/sacha9214/claude-mods",
+  "types": "./types/index.d.ts"
+}

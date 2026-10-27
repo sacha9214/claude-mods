@@ -1,6 +1,6 @@
 # claude-mods
 
-Two Claude Code mods (function-hook plugins) that make long sessions cheaper and subagents visible. They work in the terminal and in the Claude desktop app. The on-screen text is in French.
+Three Claude Code mods (function-hook plugins) that make long sessions cheaper, subagents visible and waiting less blind. Each one works on its own. They work in the terminal and in the Claude desktop app. The on-screen text is in French.
 
 ## cache-clock
 
@@ -18,6 +18,21 @@ A line above the prompt, shown while Claude is idle: how long the conversation's
 - A purple progress bar above the prompt for the current task list (the desktop app's plan, or TodoWrite / TaskCreate / TaskUpdate in the terminal), with the step in progress and a button when subagents are running.
 - A side panel that opens at the first subagent (or with `/helpers`): the session cost from `/cost`, the main thread, then each subagent with its own color, its share of the cost, estimated cost, status, duration, tool count and current action.
 
+## time-left
+
+While Claude works, an estimate of how long it has left: at the end of the spinner line, and on a line above the prompt.
+
+> En cours… · ≈ 4–7 min
+>
+> ⏳ ≈ 4–7 min restantes · étape 3/7 · d'après 42 étapes mesurées · fourchette juste 72 % du temps
+
+- With a task list, the steps still to go are drawn from your own past step durations (this plan's steps count double), and the step in progress counts only what is left of it given how long it has run. A bootstrap over the samples gives a 20th–80th percentile range, not a single number.
+- Without a task list, after 8 measured turns: how much longer your past turns went on once they had run this long. Before that, nothing is shown rather than a guess.
+- Only active time counts: the wait while you answer a question is left out.
+- Self-calibration: each estimate is judged when its plan or turn ends. After five verdicts, the median of actual over predicted stretches or shrinks the next ones, and the line says how often the range held.
+- History lives in the mod's own store, across sessions. `/time-left` shows the statistics, `/time-left reset` clears them.
+- Expect a wide range for the first plans: with no history it starts from 45 s to 6 min per step, and drops that prior after two measured steps.
+
 ## Install
 
 At the prompt of a Claude Code terminal session:
@@ -30,6 +45,10 @@ At the prompt of a Claude Code terminal session:
 /plugin install helper-desk --marketplace sacha9214/claude-mods
 ```
 
+```text
+/plugin install time-left --marketplace sacha9214/claude-mods
+```
+
 From a shell:
 
 ```bash
@@ -38,6 +57,10 @@ claude plugin install cache-clock --marketplace sacha9214/claude-mods
 
 ```bash
 claude plugin install helper-desk --marketplace sacha9214/claude-mods
+```
+
+```bash
+claude plugin install time-left --marketplace sacha9214/claude-mods
 ```
 
 Answer `y` to add the marketplace, then pick a scope (user scope loads the mods in every session).
@@ -64,6 +87,10 @@ claude plugin test ./claude-mods/cache-clock
 
 ```bash
 claude plugin test ./claude-mods/helper-desk
+```
+
+```bash
+claude plugin test ./claude-mods/time-left
 ```
 
 Tested on Claude Code 2.1.309. The mod API is early access and may change between releases.

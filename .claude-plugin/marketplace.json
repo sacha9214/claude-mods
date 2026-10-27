@@ -1,6 +1,6 @@
 {
   "name": "sacha-mods",
-  "description": "Sacha's Claude Code mods: cache countdown and keep-warm, task progress bar and subagent panel.",
+  "description": "Sacha's Claude Code mods: cache countdown and keep-warm, task progress bar and subagent panel, time-left estimate.",
   "owner": {
     "name": "sacha9214"
   },
@@ -14,6 +14,11 @@
       "name": "helper-desk",
       "source": "./helper-desk",
       "description": "Task-list progress bar above the prompt and a side panel of subagents with their cost."
+    },
+    {
+      "name": "time-left",
+      "source": "./time-left",
+      "description": "How long Claude has left: a range on the spinner line, learned from your past steps and self-calibrated."
     }
   ]
 }
