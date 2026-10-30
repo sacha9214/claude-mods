@@ -55,24 +55,113 @@ const costs = (last: Touch, info: TtlInfo) => {
   }
 }
 
-const money = (usd: number) =>
-  usd < 0.01 ? '< 0,01 $' : `${usd.toFixed(2).replace('.', ',')} $`
+// What the person set (filled in by register and session.start) and what is in
+// flight. Module values start over on a reload, which is what they mean.
+type Lang = 'en' | 'fr'
+const settings = { ttlOption: null as CacheTtl | null, keepWarmMs: 2 * HOUR, langOption: null as Lang | null, lang: 'en' as Lang }
 
-const tokens = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)} k` : String(n))
+const money = (usd: number) =>
+  settings.lang === 'fr'
+    ? usd < 0.01 ? '< 0,01 $' : `${usd.toFixed(2).replace('.', ',')} $`
+    : usd < 0.01 ? '< $0.01' : `$${usd.toFixed(2)}`
+
+const tokens = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}${settings.lang === 'fr' ? ' ' : ''}k` : String(n))
 
 const span = (ms: number) => {
   const min = Math.round(Math.max(0, ms) / MINUTE)
-  if (min < 1) return "moins d'1 min"
+  const fr = settings.lang === 'fr'
+  if (min < 1) return fr ? "moins d'1 min" : 'under 1 min'
   if (min < 60) return `${min} min`
   const h = Math.floor(min / 60)
   const rest = min % 60
+  if (rest === 0) return `${h} h`
 
-  return rest === 0 ? `${h} h` : `${h} h ${String(rest).padStart(2, '0')}`
+  return fr ? `${h} h ${String(rest).padStart(2, '0')}` : `${h} h ${rest} min`
 }
 
-// What the person set (filled in by register) and what is in flight. Module
-// values start over on a reload, which is what they mean.
-const settings = { ttlOption: null as CacheTtl | null, keepWarmMs: 2 * HOUR }
+// Every sentence the mod shows, in English and in French.
+const TEXT = {
+  en: {
+    stopped: (why: string) => `Cache clock: keep-warm stopped, ${why}.`,
+    started: (d: string) => `Cache clock: keep-warm on for ${d}.`,
+    why: { nothing: 'nothing to keep warm', cold: 'the cache was already cold', max: 'its time is up', expired: 'the cache expired before the ping', back: "you're back" },
+    note: { nothing: 'nothing to re-read', cold: 'the cache was already cold', failed: (r: string) => `failed (${r})` },
+    keepWarmDesc: 'Keeps the conversation cache warm while you are away (stops at your next message)',
+    keepWarmHint: '[off | hours]',
+    clockDesc: 'Shows or hides the cache countdown above the prompt',
+    off: 'Keep-warm stopped.',
+    none: "Nothing to keep warm: Claude hasn't sent anything in this session yet.",
+    late: 'Too late: the cache is already cold. Your next message will rewrite it anyway.',
+    each: (warm: string, cold: string) => ` Each ping costs about ${warm}, versus ${cold} for a cold cache.`,
+    on: (d: string, each: string) => `Keep-warm on for ${d}: a hidden ping re-reads the cache just before it expires, and stops at your next message.${each}`,
+    hidden: 'Cache countdown hidden.',
+    shown: 'Cache countdown shown.',
+    coldFor: (d: string) => `❄ Cache cold for ${d}`,
+    coldNext: (n: string) => `· next message re-reads ${n} tokens at full price`,
+    warmLine: (d: string) => `⏱ Cache warm · cold in ${d}`,
+    cached: (n: string, ttl: string) => `· ${n} tokens cached (${ttl})`,
+    next: (warm: string, cold: string) => `· next message ≈ ${warm} (cold: ${cold})`,
+    keepButton: (d: string) => `Keep warm ${d}`,
+    kept: (d: string) => `🔥 kept warm for ${d} more`,
+    lastPing: (ago: string, n: string) => ` · last ping ${ago} ago (${n} tokens re-read)`,
+    lastPingNote: (note: string) => ` · last ping: ${note}`,
+    stop: 'Stop',
+  },
+  fr: {
+    stopped: (why: string) => `Cache clock : keep-warm arrêté, ${why}.`,
+    started: (d: string) => `Cache clock : keep-warm activé pour ${d}.`,
+    why: { nothing: 'rien à garder au chaud', cold: 'le cache était déjà froid', max: 'durée maximale atteinte', expired: 'le cache a expiré avant le ping', back: 'tu es de retour' },
+    note: { nothing: 'rien à relire', cold: 'le cache était déjà froid', failed: (r: string) => `échec (${r})` },
+    keepWarmDesc: 'Garde le cache de la conversation chaud pendant ton absence (stop au prochain message)',
+    keepWarmHint: '[off | heures]',
+    clockDesc: 'Affiche ou masque le compte à rebours du cache au-dessus du prompt',
+    off: 'Keep-warm arrêté.',
+    none: "Rien à garder au chaud : Claude n'a encore rien envoyé dans cette session.",
+    late: 'Trop tard : le cache est déjà froid. Ton prochain message le réécrira de toute façon.',
+    each: (warm: string, cold: string) => ` Chaque ping coûte environ ${warm}, contre ${cold} pour un cache froid.`,
+    on: (d: string, each: string) => `Keep-warm activé pour ${d} : un ping invisible relit le cache juste avant qu'il expire, et s'arrête dès ton prochain message.${each}`,
+    hidden: 'Compte à rebours du cache masqué.',
+    shown: 'Compte à rebours du cache affiché.',
+    coldFor: (d: string) => `❄ Cache froid depuis ${d}`,
+    coldNext: (n: string) => `· prochain message : relit ${n} tokens au plein tarif`,
+    warmLine: (d: string) => `⏱ Cache chaud · froid dans ${d}`,
+    cached: (n: string, ttl: string) => `· ${n} tokens en cache (${ttl})`,
+    next: (warm: string, cold: string) => `· prochain message ≈ ${warm} (froid : ${cold})`,
+    keepButton: (d: string) => `Garder chaud ${d}`,
+    kept: (d: string) => `🔥 maintenu encore ${d}`,
+    lastPing: (ago: string, n: string) => ` · dernier ping il y a ${ago} (${n} tokens relus)`,
+    lastPingNote: (note: string) => ` · dernier ping : ${note}`,
+    stop: 'Arrêter',
+  },
+}
+const say = () => TEXT[settings.lang]
+
+// A ping's note is kept as a code and worded when drawn, so it follows the language.
+const noteText = (note: string) => {
+  const t = say().note
+  if (note === 'nothing') return t.nothing
+  if (note === 'cold') return t.cold
+  if (note.startsWith('failed:')) return t.failed(note.slice('failed:'.length))
+  return note
+}
+
+// The language option wins; else Claude's own `language` setting; else the
+// system locale (LC_ALL, then LC_MESSAGES, then LANG); else English.
+async function pickLang($: EngineInterface): Promise<Lang> {
+  if (settings.langOption !== null) return settings.langOption
+  const french = (value: string) => /^(fr|french|fran[cç]ais)/i.test(value.trim())
+  try {
+    const chosen = await $.settings.read({ key: 'language' })
+    if (typeof chosen === 'string' && chosen.trim() !== '') return french(chosen) ? 'fr' : 'en'
+  } catch {
+    // Settings are a hint, never a reason to fail the session.
+  }
+  for (const value of [await $.env.get('LC_ALL'), await $.env.get('LC_MESSAGES'), await $.env.get('LANG')]) {
+    if (value !== undefined && value !== '') return french(value) ? 'fr' : 'en'
+  }
+
+  return 'en'
+}
 const flags = { isBusy: false, isPinging: false }
 
 // A Claude subscription writes 1-hour cache entries, an API key 5-minute ones.
@@ -87,7 +176,7 @@ async function accountTtl($: EngineInterface): Promise<CacheTtl> {
 async function stopKeepWarm($: EngineInterface, why: string) {
   if ((await read($, warmUntil)) === null) return
   await update($, warmUntil, () => null)
-  $.ui.toast(`Cache clock : keep-warm arrêté, ${why}.`)
+  $.ui.toast(say().stopped(why))
 }
 
 async function ping($: EngineInterface) {
@@ -100,8 +189,8 @@ async function ping($: EngineInterface) {
     const cacheRead = usage?.cache_read_input_tokens ?? 0
 
     if (!reply.isAnswered && reply.reason === 'nothing-to-fork') {
-      await update($, lastPing, (): Ping => ({ at, isOk: false, cacheRead: 0, note: 'rien à relire' }))
-      await stopKeepWarm($, 'rien à garder au chaud')
+      await update($, lastPing, (): Ping => ({ at, isOk: false, cacheRead: 0, note: 'nothing' }))
+      await stopKeepWarm($, say().why.nothing)
       return
     }
 
@@ -112,9 +201,9 @@ async function ping($: EngineInterface) {
       return
     }
 
-    const note = reply.isAnswered ? 'le cache était déjà froid' : `échec (${reply.reason})`
+    const note = reply.isAnswered ? 'cold' : `failed:${reply.reason}`
     await update($, lastPing, (): Ping => ({ at, isOk: false, cacheRead, note }))
-    if (reply.isAnswered) await stopKeepWarm($, 'le cache était déjà froid')
+    if (reply.isAnswered) await stopKeepWarm($, say().why.cold)
   } finally {
     flags.isPinging = false
   }
@@ -130,14 +219,14 @@ async function onTick($: EngineInterface) {
 
   const now = await $.clock.now()
   if (now >= until) {
-    await stopKeepWarm($, 'durée maximale atteinte')
+    await stopKeepWarm($, say().why.max)
     return
   }
 
   const info = await read($, ttl)
   const expiresAt = last.at + ttlMs(info)
   if (now >= expiresAt) {
-    await stopKeepWarm($, 'le cache a expiré avant le ping')
+    await stopKeepWarm($, say().why.expired)
     return
   }
   if (now >= expiresAt - marginMs(info)) await ping($)
@@ -147,17 +236,19 @@ export const register: Register = (on, options) => {
   settings.ttlOption = options.ttl === '1h' || options.ttl === '5m' ? options.ttl : null
   const hoursOption = Number(options.keepWarmHours)
   settings.keepWarmMs = (Number.isFinite(hoursOption) && hoursOption > 0 ? hoursOption : 2) * HOUR
+  settings.langOption = options.language === 'en' || options.language === 'fr' ? options.language : null
   const { ttlOption, keepWarmMs } = settings
 
   on('session.start', async ($, e, next) => {
+    settings.lang = await pickLang($)
     await $.command.register({
       name: 'keep-warm',
-      description: 'Garde le cache de la conversation chaud pendant ton absence (stop au prochain message)',
-      argumentHint: '[off | heures]',
+      description: say().keepWarmDesc,
+      argumentHint: say().keepWarmHint,
     })
     await $.command.register({
       name: 'cache-clock',
-      description: 'Affiche ou masque le compte à rebours du cache au-dessus du prompt',
+      description: say().clockDesc,
     })
 
     if (ttlOption !== null) {
@@ -266,7 +357,7 @@ export const register: Register = (on, options) => {
   // The person is back: a real prompt ends the keep-warm.
   on('prompt.submit', async ($, e, next) => {
     if (e.command === undefined && e.isMeta === undefined) {
-      await stopKeepWarm($, 'tu es de retour')
+      await stopKeepWarm($, say().why.back)
     }
 
     return next(e)
@@ -274,38 +365,36 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: 'keep-warm' }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
-    if (['off', 'stop', 'non', 'arret', 'arrêt'].includes(arg)) {
+    if (['off', 'stop', 'no', 'non', 'arret', 'arrêt'].includes(arg)) {
       await update($, warmUntil, () => null)
-      return { text: 'Keep-warm arrêté.' }
+      return { text: say().off }
     }
 
     const last = await read($, touch)
     if (last === null) {
-      return { text: "Rien à garder au chaud : Claude n'a encore rien envoyé dans cette session." }
+      return { text: say().none }
     }
 
     const now = await $.clock.now()
     const info = await read($, ttl)
     if (now >= last.at + ttlMs(info)) {
-      return { text: 'Trop tard : le cache est déjà froid. Ton prochain message le réécrira de toute façon.' }
+      return { text: say().late }
     }
 
     const hours = Number(arg.replace(',', '.'))
     const duration = arg !== '' && Number.isFinite(hours) && hours > 0 ? Math.min(hours, 12) * HOUR : keepWarmMs
     await update($, warmUntil, () => now + duration)
     const price = costs(last, info)
-    const each = price === null ? '' : ` Chaque ping coûte environ ${money(price.warm)}, contre ${money(price.cold)} pour un cache froid.`
+    const each = price === null ? '' : say().each(money(price.warm), money(price.cold))
 
-    return {
-      text: `Keep-warm activé pour ${span(duration)} : un ping invisible relit le cache juste avant qu'il expire, et s'arrête dès ton prochain message.${each}`,
-    }
+    return { text: say().on(span(duration), each) }
   })
 
   on('command.run', { command: 'cache-clock' }, async $ => {
     await update($, isHidden, hidden => !hidden)
     const hidden = await read($, isHidden)
 
-    return { text: hidden ? 'Compte à rebours du cache masqué.' : 'Compte à rebours du cache affiché.' }
+    return { text: hidden ? say().hidden : say().shown }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -327,17 +416,18 @@ export const register: Register = (on, options) => {
     const startKeepWarm = async () => {
       const at = await $.clock.now()
       await update($, warmUntil, () => at + keepWarmMs)
-      $.ui.toast(`Cache clock : keep-warm activé pour ${span(keepWarmMs)}.`)
+      $.ui.toast(say().started(span(keepWarmMs)))
     }
     const stop = () => update($, warmUntil, () => null)
+    const t = say()
 
     if (remaining <= 0) {
       return (
         <Box flexDirection="column">
           <Box flexDirection="row" gap={1}>
-            <Text color="#4C8BF5">❄ Cache froid depuis {span(-remaining)}</Text>
+            <Text color="#4C8BF5">{t.coldFor(span(-remaining))}</Text>
             <Text dimColor>
-              · prochain message : relit {tokens(last.tokens)} tokens au plein tarif
+              {t.coldNext(tokens(last.tokens))}
               {price === null ? '' : ` (≈ ${money(price.cold)})`}
             </Text>
           </Box>
@@ -350,31 +440,29 @@ export const register: Register = (on, options) => {
     const pingLine =
       until !== null && pinged !== null
         ? pinged.isOk
-          ? ` · dernier ping il y a ${span(now - pinged.at)} (${tokens(pinged.cacheRead)} tokens relus)`
-          : ` · dernier ping : ${pinged.note}`
+          ? t.lastPing(span(now - pinged.at), tokens(pinged.cacheRead))
+          : t.lastPingNote(noteText(pinged.note))
         : ''
 
     return (
       <Box flexDirection="column">
         <Box flexDirection="row" gap={1} alignItems="center">
           <Text color={isLate ? '#D4A017' : '#2E9E5B'}>
-            ⏱ Cache chaud · froid dans {span(remaining)}
+            {t.warmLine(span(remaining))}
           </Text>
           <Text dimColor>
-            {price === null
-              ? `· ${tokens(last.tokens)} tokens en cache (${info.value})`
-              : `· prochain message ≈ ${money(price.warm)} (froid : ${money(price.cold)})`}
+            {price === null ? t.cached(tokens(last.tokens), info.value) : t.next(money(price.warm), money(price.cold))}
           </Text>
           {until === null ? (
             <Button key="keep-warm" dimColor onPress={() => void startKeepWarm()}>
-              Garder chaud {span(keepWarmMs)}
+              {t.keepButton(span(keepWarmMs))}
             </Button>
           ) : (
-            <Text color="#E8590C">🔥 maintenu encore {span(until - now)}{pingLine}</Text>
+            <Text color="#E8590C">{t.kept(span(until - now))}{pingLine}</Text>
           )}
           {until !== null && (
             <Button key="stop-warm" dimColor onPress={() => void stop()}>
-              Arrêter
+              {t.stop}
             </Button>
           )}
         </Box>

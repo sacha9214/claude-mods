@@ -1,6 +1,6 @@
 {
   "name": "cache-clock",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Countdown until the prompt cache goes cold, with a keep-warm switch that pings the cache before it expires.",
   "author": {
     "name": "sacha9214"
@@ -25,6 +25,17 @@
       "title": "Keep-warm duration (hours)",
       "description": "How long /keep-warm keeps pinging before it stops by itself.",
       "default": 2
+    },
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "description": "auto: French when Claude's language setting or your system locale is French, English otherwise.",
+      "options": [
+        "auto",
+        "en",
+        "fr"
+      ],
+      "default": "auto"
     }
   }
 }
