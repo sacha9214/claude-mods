@@ -1,16 +1,16 @@
 # claude-mods
 
-Three Claude Code mods (function-hook plugins) that make long sessions cheaper, subagents visible and waiting less blind. Each one works on its own. They work in the terminal and in the Claude desktop app. The on-screen text is in French.
+Three Claude Code mods (function-hook plugins) that make long sessions cheaper, subagents visible and waiting less blind. Each one works on its own. They work in the terminal and in the Claude desktop app. cache-clock speaks English, or French when Claude's `language` setting or your system locale is French; helper-desk and time-left are in French for now.
 
 ## cache-clock
 
 A line above the prompt, shown while Claude is idle: how long the conversation's prompt cache stays warm, and what your next message costs warm versus cold.
 
-> ⏱ Cache chaud · froid dans 47 min · prochain message ≈ 0,06 $ (froid : 2,43 $) [Garder chaud 2 h]
+> ⏱ Cache warm · cold in 47 min · next message ≈ $0.06 (cold: $2.43) [Keep warm 2 h]
 
-- `/keep-warm [off | hours]`, or the "Garder chaud" button: just before the cache expires, a hidden fork re-reads the cached prefix (`$.model.fork`), so nothing is added to the conversation. In a live test it read 99.98% of a 303k-token conversation from the cache, about $0.06 per ping on Opus 5.5. It stops on your next real message, after the set duration (2 h by default), or if a ping finds the cache already cold.
+- `/keep-warm [off | hours]`, or the "Keep warm" button: just before the cache expires, a hidden fork re-reads the cached prefix (`$.model.fork`), so nothing is added to the conversation. In a live test it read 99.98% of a 303k-token conversation from the cache, about $0.06 per ping on Opus 5.5. It stops on your next real message, after the set duration (2 h by default), or if a ping finds the cache already cold.
 - `/cache-clock` hides or shows the line.
-- Cache lifetime: 1 hour on a Claude subscription (detected from its usage windows), 5 minutes with an API key. Options: `ttl` (`auto`, `1h`, `5m`) and `keepWarmHours`.
+- Cache lifetime: 1 hour on a Claude subscription (detected from its usage windows), 5 minutes with an API key. Options: `ttl` (`auto`, `1h`, `5m`), `keepWarmHours`, and `language` (`auto`, `en`, `fr`): `auto` picks French when Claude's `language` setting, `LC_ALL`, `LC_MESSAGES` or `LANG` says French, and English otherwise.
 - Prices are list prices per million tokens (for example Opus 5.5: input $4, cache read $0.20, 1-hour cache write $8). On a subscription they stand for usage, not money.
 
 ## helper-desk

@@ -20,9 +20,16 @@ const band = (surface: 'terminal' | 'desktop', isWorking = false) =>
     },
   }) as const
 
-// Each hook here stands for the engine beneath the plugin.
-const engine = (on: On, isSubscription = true) => {
-  on('command.register', (_, e) => ({ value: { command: e.name } }))
+// Each hook here stands for the engine beneath the plugin. `env` and `settings`
+// are what the person's system and Claude Code settings hold (the language).
+const engine = (on: On, isSubscription = true, env: Record<string, string> = {}, settings: Record<string, unknown> = {}) => {
+  const commands: Record<string, string> = {}
+  on('command.register', (_, e) => {
+    commands[e.name] = e.description ?? ''
+    return { value: { command: e.name } }
+  })
+  on('env.get', (_, e) => ({ value: env[e.name] }))
+  on('settings.read', () => ({ value: settings as never }))
   // A subscription: its usage windows come with the replies.
   on('session.usage', () => ({
     value: {
@@ -56,6 +63,7 @@ const engine = (on: On, isSubscription = true) => {
     const { Box } = $.ui.resolve(e)
     return <Box />
   })
+  return commands
 }
 
 const oneTurn = async ($: Engine) => {
@@ -75,17 +83,17 @@ test('the band counts down, prices the next message, then goes cold', async ($, 
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount(band(surface))
-    expect((await ui.find({ type: 'Text', text: /Cache chaud/ }))?.text).toContain('froid dans 1 h')
+    expect((await ui.find({ type: 'Text', text: /Cache warm/ }))?.text).toContain('cold in 1 h')
     // 200k tokens: 0.2 M x 0.20 $ warm, 0.2 M x 4 $ x 2 (1-hour write) cold.
-    const prices = await ui.find({ type: 'Text', text: /prochain message/ })
-    expect(prices?.text).toContain('0,04 $')
-    expect(prices?.text).toContain('1,60 $')
+    const prices = await ui.find({ type: 'Text', text: /next message/ })
+    expect(prices?.text).toContain('$0.04')
+    expect(prices?.text).toContain('$1.60')
     await ui.unmount()
   }
 
   await clock.advance(61 * MIN)
   const ui = await $.ui.mount(band('desktop'))
-  expect((await ui.find({ type: 'Text', text: /Cache froid/ }))?.text).toContain('depuis 1 min')
+  expect((await ui.find({ type: 'Text', text: /Cache cold/ }))?.text).toContain('for 1 min')
   await ui.unmount()
 })
 
@@ -125,7 +133,7 @@ test('keep-warm pings just before expiry and stops on the next prompt', async ($
   await oneTurn($)
 
   const started = await $.command.run({ command: 'keep-warm', args: '' } as never)
-  expect(started.text).toContain('Keep-warm activé')
+  expect(started.text).toContain('Keep-warm on for 2 h')
 
   await clock.advance(50 * MIN)
   expect(forks).toBe(0)
@@ -139,7 +147,7 @@ test('keep-warm pings just before expiry and stops on the next prompt', async ($
   expect(forks).toBe(2)
 
   const ui = await $.ui.mount(band('desktop'))
-  expect((await ui.find({ type: 'Text', text: /maintenu encore/ }))?.text).toContain('199 k tokens relus')
+  expect((await ui.find({ type: 'Text', text: /kept warm/ }))?.text).toContain('199k tokens re-read')
   await ui.unmount()
 
   await $.prompt.submit({ text: 'back', wait: false } as never)
@@ -177,8 +185,60 @@ test('an API key (no usage windows) counts down 5 minutes', async ($, on) => {
   await oneTurn($)
 
   const ui = await $.ui.mount(band('desktop'))
-  expect((await ui.find({ type: 'Text', text: /Cache chaud/ }))?.text).toContain('froid dans 5 min')
+  expect((await ui.find({ type: 'Text', text: /Cache warm/ }))?.text).toContain('cold in 5 min')
   // 5-minute writes cost 1.25x input: 0.2 M x 4 $ x 1.25.
-  expect((await ui.find({ type: 'Text', text: /prochain message/ }))?.text).toContain('1,00 $')
+  expect((await ui.find({ type: 'Text', text: /next message/ }))?.text).toContain('$1.00')
   await ui.unmount()
+})
+
+// ------------------------------------------------------------------ language
+const frenchBand = async ($: Engine) => {
+  const ui = await $.ui.mount(band('desktop'))
+  const line = (await ui.find({ type: 'Text', text: /Cache chaud/ }))?.text
+  const prices = (await ui.find({ type: 'Text', text: /prochain message/ }))?.text
+  await ui.unmount()
+  return { line, prices }
+}
+
+test('a French system locale shows the band in French', async ($, on) => {
+  mock.clock(on, { now: 1_000_000 })
+  const commands = engine(on, true, { LANG: 'fr_FR.UTF-8' })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await oneTurn($)
+  const { line, prices } = await frenchBand($)
+  expect(line).toContain('froid dans 1 h')
+  expect(prices).toContain('0,04 $')
+  expect(prices).toContain('1,60 $')
+  expect(commands['keep-warm']).toContain('Garde le cache')
+})
+
+test("Claude's language setting wins over the system locale", async ($, on) => {
+  mock.clock(on, { now: 1_000_000 })
+  engine(on, true, { LANG: 'en_US.UTF-8' }, { language: 'french' })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await oneTurn($)
+  expect((await frenchBand($)).line).toContain('froid dans 1 h')
+})
+
+test('the language option wins over everything', { options: { language: 'en' } }, async ($, on) => {
+  mock.clock(on, { now: 1_000_000 })
+  const commands = engine(on, true, { LANG: 'fr_FR.UTF-8' }, { language: 'français' })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await oneTurn($)
+  const ui = await $.ui.mount(band('terminal'))
+  expect((await ui.find({ type: 'Text', text: /Cache warm/ }))?.text).toContain('cold in 1 h')
+  await ui.unmount()
+  expect(commands['keep-warm']).toContain('Keeps the conversation cache warm')
+})
+
+test('LC_ALL beats LANG, and French keep-warm replies follow', { options: { language: 'auto' } }, async ($, on) => {
+  mock.clock(on, { now: 1_000_000 })
+  engine(on, true, { LC_ALL: 'fr_CA.UTF-8', LANG: 'en_US.UTF-8' })
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await oneTurn($)
+  const started = await $.command.run({ command: 'keep-warm', args: '1,5' } as never)
+  expect(started.text).toContain('Keep-warm activé pour 1 h 30')
+  expect(started.text).toContain('0,04 $')
+  const stopped = await $.command.run({ command: 'keep-warm', args: 'arrêt' } as never)
+  expect(stopped.text).toBe('Keep-warm arrêté.')
 })
